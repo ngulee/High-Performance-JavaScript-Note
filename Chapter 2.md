@@ -1,167 +1,169 @@
-# High-Performance-JavaScript-Note
+# 高性能JavaScript系列之DOM编程(2)
 **说明**：该笔记为《高性能JavaScript》读书笔记——高性能JavaScript之XXXX系列，其中包含了我阅读该书时认为比较重要的部分，为了防止自己以后忘记的时候能够及时找到，同时也能与各位g友共享，如有错误，请不吝赐教。
 ****
-**目录**  
-1. 高性能JavaScript系列之脚本的加载与执行(1)
 
+*\"**两个两户独立的功能只要通过接口连接就会产生消耗；有个贴切的比喻：把DOM和ECMAScript想象成两个岛屿，之间通过收费桥梁连接，ECMAScript每次访问DOM就得经过这座桥并交纳过桥费；访问的次数越多，交纳的费用越高；因此推荐的做法就是尽量减少访问的次数，并努力待在ECMAScript岛上。**\"*
+#### 1 DOM访问与修改
+> 访问DOM元素时有代价的，即\"过桥费\"，修改DOM元素的代价更加昂贵，因为会导致浏览器的重排(reflow)与重绘(repaint);最坏的情况是在循环中访问或修改DOM元素，例如：  
 
-****
-
-#### 1 脚本位置
-> **脚本位置**：由于script脚本在加载过程中会阻塞其他资源的加载，因此推荐将<script>脚本尽可能放在<boby>标签的底部，以尽量减少对整个页面其他资源下载的影响；  
->
-#### 2 组织脚本
-> **组织脚本**：浏览器在解析HTML过程中每遇见一个<script>标签，都会因为脚本的执行而导致一定的延时；因此最小化延迟时间能提高页面的整体新能；对于外链JavaScript脚本文件，考虑到http请求的开销，下载4个25KB的文件比下载1个100KB的文件更快，因此，减少页面外链接脚本的数量能改善页面的性能；
->
-#### 3 无阻塞脚本
-> **3.1 脚本**：减少JavaScript文件的大小并限制HTTP请求的次数，只是构建快速响应web应用的第一步；尽管下载较大的耽搁脚本产生一次http请求，却会锁死浏览器一大段时间；为了避免这种情况，逐步向页面中加载JavaScript文件，这样做在某种程度上不会阻塞浏览器；无阻塞脚本的秘诀在于在浏览器加载完毕之后再加载JavaScript文件，采用专业术语来讲，这意味着在window对象的load事件触发后再加载JavaScript文件；  
->
-> **3.2 defer与async**:defer和asyn时无阻塞脚本加载方式，相同点是两者都采用并行下载，却别是defer需要等到页面完成后才会执行，而async是加载完成自动执行；  
->
-> **3.3 延迟脚本**：HTML4为<script>标签拓展了一个defer属性，该属性表明标签所含脚本不会修改DOM，带有defer属性的<script>标签可以放在文档的任何位置；，目前，所有主流浏览器都已支持该属性；注意，该属性只有在src属性被声明时才有效；  
-
-     <script src="./js/demo.js" type="text/javascript" defer>
-		//该脚本输出一个alert("defer");
-	</script>
-	<script >
-		alert("script");
-	</script>	
-	<script >
-		window.onload = function() {
-			alert("onload");
-		}
-	</script>	
-> 对于不支持defer属性的浏览器，会输出defer、script、onload；对于支持defer属性的浏览器，会弹出script、defer、onload；  
-
-> **3.4 动态脚本**：动态添加的<script>标签，这种技术的重点在于无论何时启动下载，文件的下载和执行都不会阻塞页面的其他进程；通常来讲，动态创建的<script>标签调价到<head>中比添加到<body>保险，尤其是在页面加载过程中执行代码更是如此；动态加载脚本的标准与IE特有方法封装如下：  
-
-    function loadScript(url,calback) {
-      var script = document.crateElement("script");
-      script.type = "text/javascript";
-      if(script.readyState) {//for IE
-        script.onreadyStateChange = function() {
-          if(script.readyState == "loaded" || script.readyState == "complete") {
-            script.onreadyStateChange = null;
-            script.src = url;
-          }
-          calback();
+    function innerHTMLLoop() {
+        for(var i = 0; i < 5000; i++) {
+            document.getElementById("test").innerHTML += "a";
         }
-      }else {
-        script.onlaod = function() {
-          calback();
-        }
-        script.src = url;
-      }
-      document.getElementsByTagName("head")[0].appendChild(script);
-    }  
-> 如果想动态加载多个JS文件，可以嵌套调用loadScript函数：   
+    }
+> 这段代码的问题在于，每次循环迭代，该元素都被访问两次：一次是读取innerHTML属性，一次是重写innerHTML属性；换一种更高效的办法，用局部变量储存修改的内容，在循环结束后一次性写入：  
 
-    loadScript("file1.js", function() {
-      loadScript("file2.js",function() {
-        loadScript("file3.js",function() {
-          alert("All file is loaded");
-        })
-      })
-    })
-> 如果加载多个JS文件的顺序很重要，更好的办法是按照顺序把他们合并为一个JS文件进行加载；
-**动态加载脚本技术凭借它其跨浏览器兼容性和易用优势，已经成为最常用的无阻塞加载解决**
+    function innerHTMLLoop2() {
+        var content = "";
+            for(var i = 0; i < 5000; i++) {
+            content += "a";
+        }
+        document.getElementById("test").innerHTML += content;
+    }
+> **通用的经验法则是：减少DOM访问次数，把运算尽量留在ECMAScript这一段**  
+#### 2 克隆节点
+> 使用DOM方法更新页面内容的方法一——克隆已有的元素，而不是创建新元素，即使用element.cloneNode()(element表示已有的节点)代替document.createElement()；  
+#### 3 访问集合是使用局部变量
+> 一般来说，对于任何类型的DOM，需要多次访问同一属性或者方法时，最好用一个局部变量先缓存被访问的目标；当遍历一个HTML集合时，第一优化原则是把集合储存在局部变量中，并把length属性缓存在循环外部，然后使用局部变量代替这些需要多次访问的元素；例如：   
+
+
+    //较慢
+    function collectionGlobal(elementName) {
+        var divs = document.getElementsByTagName(elementName),
+            length = divs.length,
+            nodeName = "",
+            nodeType = "",
+            tagName = "";
+        for(var i = 0; i < length; i++) {
+            nodeName = document.getElementsByTagName("div")[i].nodeName;
+            nodeType = document.getElementsByTagName("div")[i].nodeType;
+            tagName = document.getElementsByTagName("div")[i].tagName;
+        }
+        return {
+            nodeName: nodeName,
+            nodeType: nodeType,
+            tagName: tagName
+        }
+    }
+> 现在我们把在循环中多次访问的document.getElementsByTagName("div")替换成局部变量divs:  
+
+
+    //较快
+    function collectionGlobal(elementName) {
+        var divs = document.getElementsByTagName(elementName),
+             length = divs.length,
+            nodeName = "",
+             nodeType = "",
+             tagName = "";
+        for(var i = 0; i < length; i++) {
+         nodeName = divs[i].nodeName;
+            nodeType = divs[i].nodeType;
+            tagName = divs[i].tagName;
+        }
+        return {
+            nodeName: nodeName,
+            nodeType: nodeType,
+            tagName: tagName
+        }
+    }
+> 改进后的程序在循环中虽然不用多次访问document.getElementsByTagName("div")这个全局对象与方法，但是在循环中还是存在多次访问divs[i]，因此，我们对divs[i]进一步缓存，以减少访问divs[i]的次数；  
+
+
+    //最快
+    function collectionGlobal(elementName) {
+        var divs = document.getElementsByTagName(elementName),
+          length = divs.length,
+          nodeName = "",
+          nodeType = "",
+          tagName = "",
+          item = null;
+        for(var i = 0; i < length; i++) {
+          item =  divs[i];
+          nodeName = item.nodeName;
+          nodeType = item.nodeType;
+          tagName = item.tagName;
+        }
+        return {
+           nodeName: nodeName,
+           nodeType: nodeType,
+           tagName: tagName
+        }
+    }
+> 最终版本不仅在性能上得到改善，而且代码看起来更加简洁明了；
+#### 4 重排和重绘
+##### 4.1 重排和重绘何时发生
+> 当DOM的变化影响了某个元素的几何属性和位置(例如width、height、position等)时，浏览器要重新计算该元素的属性，同时，其他元素的几何属性和位置也可能受影响，浏览器使收到影响的部分失效，并重新构建渲染树，这个过程叫重排(reflow)；重排结束后，浏览器会重新把受到影响的部分重新渲染到屏幕中，这个过程叫重绘(repaint)；当页面的布局和元素的几何属性发生改变时就需要重排：  
+> + 添加或删除可见的DOM元素；
+> + 元素的位置改变；
+> + 元素的几何属性改变(margin、padding、border-width、width、height等属性改变)
+> + 内容改变，例如文本或图片被另外一个不同尺寸的图片代替；
+> + 页面渲染器初始化；
+> + 浏览器尺寸窗口改变；
+重排和重绘的代价是昂贵的，他们会导致web应用程序的UI反应迟钝，因此，应该尽可能减少这类过程的发生；  
+
+##### 4.2 最小化重排和重绘
+> **改变元素样式**：将需要改变多个CSS样式的操作合拼，例如：  
+
+
+    var div = document.getElementById("test");
+    div.style.border = "1px solid red;";
+    div.style.padding = "5px;";
+    div.style.marginTop = "5px;";
+> 对于较低版本的浏览器，将导致三次重排和重绘，对此，我们对其进行改进：  
+
+
+    var div = document.getElementById("test");
+    div.style.cssText = "border: 1px solid red; padding: 5px; margin-top: 5px;";
+> **批量修改DOM**：当你需要对DOM进行一系列操作时，可以通过以下步骤来减少重排和重绘的次数；
+> + 第一步：使其脱离文档流;
+> + 第二步：对其进行多重应用；
+> + 第三步：把元素带回文档中；  
 >
-> **3.5 XMLHttpRequest脚本注入**：无阻塞加载JS文件的另一种方式是通过XHR对象也可以在页面中动态注入脚本；
+>  该过程会触发两次重排和重绘，如果忽略第一步和第三步，那么在第二步中的任何操作都可能导致重排和重绘；  
+>
+> 有三种方法可以实现DOM脱离文档流：
+> + 隐藏元素；
+> + 使用文档断片，在DOM之外构建一个子树，然后再把它拷贝回文档；
+> + 将原始元素拷贝到一个脱离文档流的节点中，修改副本，然后在用副本替换原始元素；  
 
-    function loadScriptByXHR(url) {
-        //创建跨浏览器XHR对象
-        function createXHR() {
-          if( typeof XMLHttpRequest != "undefined") {
-            createXHR = function() {
-              return new XMLHttpRequest();
-            }
-          }else if( typeof ActiveXObject !="undefined") {
-            createXHR = function() {
-              if (typeof arguments.callee.activeXString != "string") {
-                var versions = ["MSXML2.XMLHttp.6.0","MSXML2.XMLHttp.3.0","MSXML2.XMLHttp"],
-            len,
-            i;
-                for(i = 0, len = versions.length; i < len; i++) {
-                  try{
-                    new ActiveXObject(versions[i]);
-                    arguments.callee.activeXString = versions[i];
-                    break;
-                  }catch(err) {
-                    //跳过
-                  }
-                }
-              }
-              return ActiveXObject(arguments.callee.activeXString); 
-            } 
-          }else {
-            createXHR = function() {
-              throw new Error("No XHR object available.");
-            } 
-          }
-          return createXHR();
-        }
-        
-        //通过XHR对象动态注入脚本
-        var xhr = createXHR();
-        xhr.open("get", url, true);
-        xhr.onreadyStateChange = function() {
-            if(xhr.readyState == 4) {
-                if(xhr.status >= 200 && xhr.status < 300 || xhr.status == 304) {
-                 var script = document.createElement("script");
-                    script.type = "text/javascript";
-                    script.text = xhr.responseText;
-                    document.body.appendChild(script);
-                }
-            }
-        }
-        xhr.send(null);
-    }  
-> **主要优点**：你可以下载JS文件，但不立即执行(由于代码是在<script>标签之外返回的，因此它下载后不会自动执行)，这使得你可以把脚本的执行推迟到你准备好的时候；另一个优点是同样的代码在所有主流浏览器中都能正常运行；  
-> **主要缺点**：这种方法的局限是JavaScript文件必须与所请求的页面处于相同的域，这意味着JavaScript文件不能从CDN上下载，因此大型web应用一般不会使用XHR对象动态注入脚本技术；    
+> **缓存布局信息**：当你查询布局信息时，例如偏移量(offsets)、滚动位置(scroll values)或计算出的样式值(computedStyle values)时，浏览器为了返回最新值，会重新刷新列队并应用所有更新；最好的做法是尽量减少获取布局信息的次数，将布局信息保存在局部变量中，然后再操作局部变量；例如：将一个大小为100×100的div沿着对角线从(0,0)的开始位置移动到(500,500)的结束位置：
 
-> **3.6 推荐的无阻塞模式**：
-> 向页面中加载大量JS脚本的推荐做法只需要两步：先添加动态添加所需要的代码，然后加载初始化页面所需要的代码；  
->**方法1**：  
 
-    <script src="loader.js" type="text/javascript" charset="utf-8" ></script>
-	<script type="text/javascript" charset="utf-8" >
-		loadScript("the-rest.js",function() {
-			Application.init();
-		})
-	</script>
-> **方法2**：  
-
-    <script type="text/javascript" charset="utf-8" >
-        function loadScript(url,calback) {
-        var script = document.crateElement("script");
-        script.type = "text/javascript";
-        if(script.readyState) {//for IE
-            script.onreadyStateChange = function() {
-            if(script.readyState == "loaded" || script.readyState == "complete") {
-                script.onreadyStateChange = null;
-                script.src = url;
-            }
-            calback();
-            }
+    //低效的方法
+    function moveDiv() {
+      var div = document.getElementById("test");
+      setTimeout(function() {
+        if(div++ < 500 ) {
+          div.style.left = 1 + div.style.left + "px";
+          div.style.top = 1 + div.style.right + "px";
+          console.log(div);
+          setTimeout(arguments.callee, 100);
         }else {
-            script.onlaod = function() {
-            calback();
-            }
-         script.src = url;
+          return;
         }
-            document.getElementsByTagName("head")[0].appendChild(script);
-        } 
-        loadScript("the-rest.js",function() {
-			Application.init();
-		})
-    </script>
-> **\*注意\***：如果采用第二种方法，建议把初始化代码压缩到最小；  
+      },10)
+    }
+    
+    
+    //改进的方法
+    function moveDiv() {
+      var div = document.getElementById("test")，
+          current = div.offsetLeft;
+      setTimeout(function() {
+        if(current++ < 500 ) {
+          div.style.left = current + "px";
+          div.style.top = current + "px";
+          setTimeout(arguments.callee, 100);
+        }else {
+          return;
+        }
+      },10)
+    }  
 
-> #### 4 小结
-> 减少JS脚本加载对性能影响的方法有：
-+ 将所有<script>标签放在<body>底部，这能确保在脚本执行之前页面已经渲染完毕；
-+ 合并脚本。页面中脚本的数量越少，加载脚本的速度越快，响应更加迅速，无论内嵌脚本还是外链JS文件；
-+ 有多重无阻塞下载JavaScript的方法  
-1.1 使用<script>标签的defer属性  
-1.2 使用动态创建的<script>元素来下载并执行代码；  
-1.3 使用XHR对象下载JS代码并注入页面中；
+#### 5 小结
+> 1. 最小化DOM访问次数，尽可能在JavaScript端进行处理；
+> 2. 如果需要多次访问某个DOM节点，用局部变量储存其引用；
+> 3. 小心处理HTML集合，因为他实时连接着底层文档；
+> 4. 要留意重排和重绘，减少访问布局信息的次数；
+    
+
