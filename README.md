@@ -3,8 +3,8 @@
 ****
 **目录**  
 1. 高性能JavaScript系列之脚本的加载与执行(1)  
-2. 高性能JavaScript系列之DOM编程(2)
-3.高性能JavaScript系列之算法和流程(3)
+2. 高性能JavaScript系列之DOM编程(2)  
+3. 高性能JavaScript系列之算法和流程(3)
 
 
 ****
