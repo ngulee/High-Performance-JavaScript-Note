@@ -31,7 +31,7 @@
     window.onload = function() {
         alert("onload");
     }
-</script>    
+</script>
 ```
 
 > 对于不支持defer属性的浏览器，会输出defer、script、onload；对于支持defer属性的浏览器，会弹出script、defer、onload；
@@ -57,7 +57,7 @@ function loadScript(url,calback) {
     script.src = url;
   }
   document.getElementsByTagName("head")[0].appendChild(script);
-}  
+}
 ```
 
 > 如果想动态加载多个JS文件，可以嵌套调用loadScript函数：
@@ -125,7 +125,7 @@ function loadScriptByXHR(url) {
         }
     }
     xhr.send(null);
-}  
+}
 ```
 
 > **主要优点**：你可以下载JS文件，但不立即执行\(由于代码是在script标签之外返回的，因此它下载后不会自动执行\)，这使得你可以把脚本的执行推迟到你准备好的时候；另一个优点是同样的代码在所有主流浏览器中都能正常运行；  
