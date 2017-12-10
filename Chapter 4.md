@@ -19,9 +19,9 @@
 
 > 随着要合并的字符串的长度和数量增加，有一些方法开始展现出优势，首先看一个栗子\(该栗子只能看，不能吃\)，这是一个连接字符串的常用方式：
 
-```
+```js
 var str = "";
-str +="one" + "two";  
+str +="one" + "two";
 ```
 
 > 次代码运行时会经历四个步骤：  
@@ -32,17 +32,17 @@ str +="one" + "two";
 
 以下代码用两两行语句直接附加内容给str，葱而避免了产生临时字符串：
 
-```
+```js
 var str = "";
 str += "one";
-str += "one" + "two";  
+str += "one" + "two";
 ```
 
 或：
 
-```
+```js
 var str= "";
-str += "one" + "two";    
+str += "one" + "two";
 ```
 
 在大多数浏览器中，这样做能够提速10%-40%，但是对于IE7以及更低版本的IE浏览不适用，这是由于IE执行连接操作的底层机制决定的。
@@ -51,7 +51,7 @@ str += "one" + "two";
 
 数组项合并字符串方法：
 
-```
+```js
 ["str1","str2",...,"strn"].join("")
 ```
 
@@ -61,7 +61,7 @@ str += "one" + "two";
 
 字符串的原生方法concat能接收任意数量的参数，并将每一个参数附加到被调用的字符串上。
 
-```
+```js
 //附加一个字符串
 str = str.concat(s1);
 
@@ -69,7 +69,7 @@ str = str.concat(s1);
 str = str.concat(s1,s2,...,sn);
 
 //如果传递一个数组，可以附加数组中的所有字符串
-str = String.prototype.concat.apply(str,[s1,s2,...,sn]);  
+str = String.prototype.concat.apply(str,[s1,s2,...,sn]);
 ```
 
 遗憾的是，在大多数情况下，concat方法要比+和+=操作稍慢。
